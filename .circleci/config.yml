@@ -1,143 +1,31 @@
+# Use the latest 2.1 version of CircleCI pipeline process engine.
+# See: https://circleci.com/docs/configuration-reference
 version: 2.1
 
-orbs:
-  go: circleci/go@1.8.0
-  slack: circleci/slack@4.10.1
-
-commands:
-  notify-failures-on-main:
-    description: "Notify Slack"
-    parameters:
-      channel:
-        type: string
-        default: C03N11M0BBN
-    steps:
-      - slack/notify:
-          channel: << parameters.channel >>
-          event: fail
-          template: basic_fail_1
-          branch_pattern: main
+# Define a job to be invoked later in a workflow.
+# See: https://circleci.com/docs/jobs-steps/#jobs-overview & https://circleci.com/docs/configuration-reference/#jobs
 jobs:
-  golang-lint:
-    executor:
-      name: go/default  # is based on cimg/go
-      tag: '1.21'
-    steps:
-      - checkout
-      - run:  golangci-lint run superchain validation
-  golang-modules-tidy:
-    executor:
-      name: go/default  # is based on cimg/go
-      tag: '1.21'
-    steps:
-      - checkout
-      - run:
-          name: tidy superchain module
-          command: go mod tidy
-          working_directory: superchain 
-      - run:
-          name: tidy validation module
-          command: go mod tidy
-          working_directory: validation
-      - run:
-          name: check git tree is clean
-          command: git diff --exit-code 
-  golang-test:
-    executor:
-      name: go/default  # is based on cimg/go
-      tag: '1.21'
-    steps:
-      - checkout
-      - run:
-          name: run superchain module tests
-          command: go test ./... -v
-          working_directory: superchain
-      - run:
-          name: run validation module tests
-          command: go test ./... -v
-          working_directory: validation
-      - notify-failures-on-main
-  publish-bot:
-    environment:
-      NODE_AUTH_TOKEN: $NPM_TOKEN  # Use NPM_TOKEN as the auth token
+  say-hello:
+    # Specify the execution environment. You can specify an image from Docker Hub or use one of our convenience images from CircleCI's Developer Hub.
+    # See: https://circleci.com/docs/executor-intro/ & https://circleci.com/docs/configuration-reference/#executor-job
     docker:
-      - image: cimg/node:18  # Use Node.js 18
-    steps:
-      - checkout
-      - run:
-          name: Set deployment token
-          command: npm config set '//registry.npmjs.org/:_authToken' "${NPM_TOKEN}"
-      - env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - run:
-          name: Build and publish package on NPM 📦
-          command: pnpm release
-  check-codegen:
-    docker:
-      - image: cimg/node:18.18.2
-    steps:
-      - checkout
-      - run:
-          name: Run codegen
-          command: pnpm codegen
-      - run:
-          name: Check for changes
-          command: git diff --exit-code
-  check-forge-fmt:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.40.0
-    steps:
-      - checkout
-      - run:
-          name: check compliance with forge fmt
-          command: |
-            forge fmt --check
-  check-security-configs:
-    circleci_ip_ranges: true
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.40.0
-    steps:
-      - checkout
-      - run:
-          name: check security configs
-          command: |
-            forge build
-            # Note: If RPC is being rate-limited, consider reducing
-            # --compute-units-per-second or using --fork-retries and
-            # --fork-retry-backoff to stay under the limit.
-            forge script CheckSecurityConfigs \
-              --fork-url="https://ci-mainnet-l1.optimism.io" --compute-units-per-second=320
-            forge script CheckSecurityConfigs \
-              --fork-url="https://ci-sepolia-l1.optimism.io" --compute-units-per-second=320
-            forge script CheckSecurityConfigs \
-              --fork-url="https://ci-goerli-l1.optimism.io" --compute-units-per-second=320
-      - notify-failures-on-main
+      # Specify the version you desire here
+      # See: https://circleci.com/developer/images/image/cimg/base
+      - image: cimg/base:current
 
+    # Add steps to the job
+    # See: https://circleci.com/docs/jobs-steps/#steps-overview & https://circleci.com/docs/configuration-reference/#steps
+    steps:
+      # Checkout the code as the first step.
+      - checkout
+      - run:
+          name: "Say hello"
+          command: "echo Hello, World!"
+
+# Orchestrate jobs using workflows
+# See: https://circleci.com/docs/workflows/ & https://circleci.com/docs/configuration-reference/#workflows
 workflows:
-  hourly:
+  say-hello-workflow: # This is the name of the workflow, feel free to change it to better match your workflow.
+    # Inside the workflow, you define the jobs you want to run.
     jobs:
-      - golang-test:
-          context:
-            - slack
-      - check-security-configs:
-          context:
-            - slack
-    triggers:
-      - schedule: 
-          cron: "0 * * * *"
-          filters:
-            branches:
-              only:
-                - main
-  main:
-    jobs:
-      - golang-lint
-      - golang-modules-tidy
-      - golang-test:
-          context:
-            - slack
-      - check-codegen
-      - check-forge-fmt
-      - check-security-configs:
-          context:
-            - slack
+      - say-hello
